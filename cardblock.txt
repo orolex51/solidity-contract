@@ -1,0 +1,86 @@
+pragma solidity ^0.4.26;
+pragma experimental ABIEncoderV2; 
+
+contract AdouCard {
+    
+    address owner;
+    
+    mapping(address => string) personcards;
+    
+    mapping(address => string) companycards;
+    
+    mapping(address => string[]) orders;
+    
+    constructor() public {
+        owner = msg.sender;
+    }
+    
+    modifier onlyOwner() {
+        require(owner == msg.sender);
+        _;
+    }
+    
+    function changeOwner(address _to) onlyOwner public returns (bool success) {
+        require(_to != address(0));
+        owner = _to;
+        return true;
+    }
+    
+    function savePersonCard(address _addr, string _card) onlyOwner public returns (bool success) {
+        require(_addr != address(0));
+        personcards[_addr] = _card;
+        return true;
+    }
+    
+    function saveCompanyCard(address _addr, string _card) onlyOwner public returns (bool success) {
+        require(_addr != address(0));
+        companycards[_addr] = _card;
+        return true;
+    }
+    
+    function saveOrder(address _addr, string _order) onlyOwner public returns (bool success) {
+        require(_addr != address(0));
+        string[] old = orders[_addr];
+        uint len = old.length;
+        string[] memory arr = new string[](len + uint(1));
+        if (len > 0) {
+            for (uint i = 0; i < len; i++) {
+                arr[i] = old[i];
+            }
+        }
+        arr[arr.length - 1] = _order;
+        orders[_addr] = arr;
+        return true;
+    }
+    
+    function getPersonCard(address _from) public view returns (string) {
+        require(_from != address(0));
+        return personcards[_from];
+    }
+    
+    function getCompanyCard(address _from) public view returns (string) {
+        require(_from != address(0));
+        return companycards[_from];
+    }
+    
+    function getOrder(address _from) public view returns (string) {
+        require(_from != address(0));
+        string memory res;
+        string[] arr = orders[_from];
+        for (uint i = 0; i < arr.length; i++) {
+            res = strConcat(res, arr[i]);
+        }
+        return res;
+    }
+    
+    function strConcat(string _a, string _b) internal returns (string){
+        bytes memory _ba = bytes(_a);
+        bytes memory _bb = bytes(_b);
+        string memory ret = new string(_ba.length + _bb.length);
+        bytes memory bret = bytes(ret);
+        uint k = 0;
+        for (uint i = 0; i < _ba.length; i++) bret[k++] = _ba[i];
+        for (i = 0; i < _bb.length; i++) bret[k++] = _bb[i];
+        return string(ret);
+   }
+}

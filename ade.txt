@@ -1,0 +1,97 @@
+pragma solidity ^0.4.26;
+
+contract AdouToken {
+    function transfer(address _to, uint256 _value) public returns (bool success);
+    function balanceOf(address _owner) public constant returns (uint256 balance);
+}
+
+contract AdouEquipt {
+    
+    address public adtAddr = 0xA6e2cD4c8FCE3C906b11FD61a6e7258f31a3aDa0;
+    AdouToken adt = AdouToken(adtAddr);
+    
+    address public owner; //合约拥有者
+    uint256 public _lockedSupply; //锁库
+    mapping(address => uint256) public locked; //锁仓信息
+    mapping(address => uint256) public singleRelease; //单次释放数量
+    mapping(address => uint256) public unlocked; //已释放锁仓数量信息
+    mapping(address => uint256) public lastDates; //锁仓上次释放时间信息
+    uint256 public constant MAX_UINT = 2**256 - 1; //最大数
+    uint public decimals = 4; //代币有效小数位
+    
+    constructor() public payable {
+        owner = msg.sender;
+        _lockedSupply = 1e8 * 10 ** uint256(decimals);
+    }
+    
+    modifier onlyOwner() {
+        require(msg.sender == owner);
+        _;
+    }
+    
+    function balanceOf(address _from) public constant returns (uint256) {
+        return adt.balanceOf(_from);
+    }
+    
+    function transfer(address _to, uint256 _value) public returns (bool success) {
+        return adt.transfer(_to, _value);
+    }
+    
+    //用户ADE锁库
+    function lock(address _to, uint256 _val, uint256 _day) onlyOwner public returns (bool success){
+        require(_to != address(0));
+        require(_val > 0 && _day > 0 && _day < MAX_UINT && _val < MAX_UINT && _day % 30 == 0);
+        require(_lockedSupply - _val > 0 && _lockedSupply > 0);
+        require(locked[_to] == 0);
+        require(_val >= 10000);
+        _val = _val * 10 ** uint256(decimals);
+        locked[_to] = _val;
+        lastDates[_to] = now;
+        _lockedSupply -= _val; 
+        singleRelease[_to] = _val * 30 / _day;
+        emit Lock(_lockedSupply, _val, _day);
+        return true;
+    }
+    
+    //用户ADE解锁
+    function unlock(address[] _addrs) onlyOwner public returns (uint[]) {
+        require(_addrs.length > 0);
+        uint256 _total;
+        for (uint j = 0; j < _addrs.length; j++) {
+            address _addr1 = _addrs[j];
+            require(lastDates[_addr1] + 30 days < now);
+            require(_addr1 != address(0) && locked[_addr1] != 0 && locked[_addr1] != unlocked[_addr1]);
+            uint256 _val1 = singleRelease[_addr1];
+            if (locked[_addr1] - unlocked[_addr1] < 2 * _val) {
+                _val1 = locked[_addr1] - unlocked[_addr1];
+            }
+            _total += _val1;
+        }
+        require(balanceOf(this) >= _total);
+        uint[] memory res = new uint[](_addrs.length);
+        for (uint i = 0; i < _addrs.length; i++) {
+            address _addr = _addrs[i];
+            uint256 _val = singleRelease[_addr];
+            if (locked[_addr] - unlocked[_addr] < 2 * _val) {
+                _val = locked[_addr] - unlocked[_addr];
+            }
+            bool flag = transfer(_addr, _val);
+            if (flag) {
+                unlocked[_addr] += _val;
+                lastDates[_addr] = now;
+                res[i] = 1;
+                if (locked[_addr] == unlocked[_addr]) {
+                    locked[_addr] = 0;
+                    unlocked[_addr] = 0;
+                    lastDates[_addr] = 0;
+                    singleRelease[_addr] = 0;
+                }
+                emit Unlock(_addr, _val, now);
+            }
+        }
+        return res;
+    }
+    
+    event Lock(uint _lockedSupply, uint _val, uint _day);
+    event Unlock(address _addr, uint _singleRelease, uint _date);
+}
